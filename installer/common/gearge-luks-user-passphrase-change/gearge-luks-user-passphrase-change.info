@@ -1,0 +1,42 @@
+# Version info. Update with each MAJOR and MINOR change to source tree.
+MAJOR=0
+MINOR=4
+VERSION=${MAJOR}.${MINOR}
+#~ BUILD=0
+#~ PATCH=0
+#~ VERSION=${MAJOR}.${MINOR}.${BUILD}.${PATCH}
+
+# Base name of the package.
+PACKAGE="gearge-luks-user-passphrase-change"
+
+# Filename of the main executable (for generating launcher scripts, etc.)
+PROGNAME=as-user
+
+# Base directory for package installation.
+INSTALLDIR=/opt/gearge/luks-user-passphrase-change
+
+# Full path to the main executable (as it's not added to $PATH)
+PROGPATH=${INSTALLDIR}/${PROGNAME}
+
+# Display string for desktop menu/icon.
+MENUNAME="Giorgi's LUKS User Passphrase Changer"
+
+# "GenericName" for desktop menu/icon.
+MENUGENERICNAME="Cryptsetup utility"
+
+# Brief package description (no longer than 80 characters and no ending dot).
+SHORTDESC="Change your full-disk encryption passphrase"
+
+# Detailed package description.
+FULLDESC="No detailed package description is available."
+
+# Package maintainer information.
+MAINTNAME="Giorgi Tavkelishvili"
+MAINTMAIL="gearge@linuxpg.org"
+PRODUCTURL="https://github.com/gearge/luks-user-passphrase-change"
+COMPANYFULLNAME="Giorgi Tavkelishvili"
+
+# License and copyright for the contents of the binary packaging (rpm and deb).
+PRODUCTLICENSE="GPLv3+"
+PRODUCTCOPYRIGHT="Copyright 2019 ${COMPANYFULLNAME}"
+

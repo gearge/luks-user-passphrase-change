@@ -1,0 +1,260 @@
+#!/bin/bash
+# ../gearge-luks-user-passphrase-change/as-user
+#
+# Copyright 2018, 2019 Giorgi Tavkelishvili
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Last updated 2019-02-01 by Giorgi T.
+
+myWorkDir="$PWD"
+myName=$(basename "$0")
+myFullName=$(readlink -f "$0") # canonicalized path
+myBinDir=$(dirname "$myFullName") # canonicalized path
+myPkexecLogFile=/var/tmp/${myFullName//\//_}_pkexec_$(date '+%Y%m%d%H%M%S.%N')
+# --- Defaults -----------------------------------------------------------------
+boolOptAutostart=false
+boolLuksUserPassphraseForgottenUnknown=false
+boolCancelQuits=false
+luksAct=change
+formsSeparator=$'\n'
+formsTitle="Change user's full-disk encryption passphrase "
+formsText="Details... 'Cancel' to reset (if forgotten/unknown) "
+formsPassword1FieldName="Enter existing passphrase"
+formsPassword2FieldName="Enter new passphrase"
+formsPassword3FieldName="Verify new passphrase"
+formsDataLen=3
+warningText="You will be prompted again on next GUI login!"
+errorText="Failed! "
+infoText="The system administrator has requested you change your default "
+infoText+="full-disk encryption passphrase."
+msgCryptsetupWithLibpwquality="Cryptsetup on this system is built with "
+msgCryptsetupWithLibpwquality+="password quality checking via libpwquality."
+msgCryptsetupWoutLibpwquality="Cryptsetup on this system is built without "
+msgCryptsetupWoutLibpwquality+="password quality checking via libpwquality! "
+msgCryptsetupWoutLibpwquality+="This is OK as we will perform passphrase "
+msgCryptsetupWoutLibpwquality+="quality checking via 'pwscore' application."
+pwscoreThreshold=40 # integer value between 0 (weakest) and 100 (strongest)
+# --- End of defaults ----------------------------------------------------------
+
+zenity_forms_1() {
+  zenity --forms \
+    --separator="$formsSeparator" \
+    --add-password="$formsPassword1FieldName" \
+    --add-password="$formsPassword2FieldName" \
+    --add-password="$formsPassword3FieldName" \
+    --title="$formsTitle" \
+    --text="$formsText"
+}
+zenity_warning_1() {
+  zenity --warning \
+    --no-wrap \
+    --text="<span fgcolor='#cc0000'>${warningText}</span>"
+}
+zenity_error_1() {
+  zenity --error \
+    --no-wrap \
+    --text="<span fgcolor='#cc0000'>${errorText}</span>"
+}
+zenity_info_1() {
+  zenity --info \
+    --no-wrap \
+    --text="<span fgcolor='#000000'>${infoText}</span>"
+}
+
+pwquality() {
+  local RETVAL pwscoreOut pwscoreMsg
+  case ${1} in
+    (lib)
+      strings $(which cryptsetup) | grep -qw libpwquality
+      if [[ $? -eq 0 ]]; then
+        msg_inf "$msgCryptsetupWithLibpwquality"
+      else
+        msg_inf "$msgCryptsetupWoutLibpwquality"
+      fi
+      ;;
+    (check)
+      pwscoreOut=$(pwscore $USER <<<"$2" 2>&1); RETVAL=$?
+      pwscoreMsg=$(tr -d '\n' <<<"$pwscoreOut") # "flatten"
+      # It either reports an error if the password fails any of the checks, ...
+      if [[ $RETVAL -ne 0 ]]; then
+        msg_err "$pwscoreMsg"
+        echo "$pwscoreMsg"
+        return 1
+      fi
+      # ...or it prints out the password quality score as an integer value
+      # between 0 and 100.
+      if [[ $pwscoreMsg =~ ^[0-9]+$ ]]; then
+        if [[ $pwscoreMsg -le $pwscoreThreshold ]]; then
+          msg_err "$pwscoreMsg -le $pwscoreThreshold (the accepted threshold)"
+          echo "Low password quality score. Please try a stronger passphrase!"
+          return 3
+        else
+          return 0
+        fi
+      else
+        msg="Invalid password quality score from 'pwscore': $pwscoreMsg"
+        msg_err "$msg"
+        echo "$msg"
+        return 2
+      fi
+      ;;
+  esac
+  return 1
+}
+
+# --- Main ---------------------------------------------------------------------
+
+source "$myBinDir/common.include" || exit $?
+
+while (( $# )); do
+  case ${1} in
+    (autostart)
+      boolOptAutostart=true
+      ;;
+    (*)
+      exit 1
+      ;;
+  esac
+  shift
+done
+print_dbg "$(declare -p boolOptAutostart)"
+
+if [[ -e ${myStateFile} ]] && ${boolOptAutostart}; then
+  myStateFileModTime=$(stat -c '%y' "$myStateFile")
+  msg="Found $myStateFile modified $myStateFileModTime. All good!"
+  msg_inf "$msg Exiting..."
+  exit 0
+fi
+
+if [[ -s ${etcCustodianUsernameFile} ]]; then
+  if [[ $USER != $(cat "$etcCustodianUsernameFile") ]]; then
+    msg="User '$USER' is not the custodian of this machine ($(hostname --fqdn))"
+    if ! ${boolOptAutostart}; then
+      msg_err "$msg"
+      errorText="$msg"
+      zenity_error_1
+      msg_inf "zenity_error_1() displayed: $errorText"
+    fi
+    exit 2
+  fi
+else
+  msg_err "No or empty $etcCustodianUsernameFile"
+  if ! ${boolOptAutostart}; then
+    errorText="$msg"
+    zenity_error_1
+    msg_inf "zenity_error_1() displayed: $errorText"
+  fi
+  exit 1
+fi
+
+pwquality lib
+
+if $boolOptAutostart; then
+  zenity_info_1
+  msg_inf "zenity_info_1() displayed: $infoText"
+fi
+
+while :; do
+  if $boolLuksUserPassphraseForgottenUnknown; then
+    luksAct=reset
+    formsTitle=${formsTitle/#Change /Reset }
+    formsPassword1FieldName="Enter IT recovery passphrase"
+  fi
+  formsDataStr=$(zenity_forms_1); RETVAL=$?
+  msg_inf "zenity_forms_1() displayed: $formsTitle; $formsText"
+  if [[ $RETVAL -eq 0 ]]; then
+    msg_inf "zenity_forms_1() submitted. luksAct=$luksAct"
+    boolCancelQuits=true
+    IFS="$formsSeparator" formsDataArr=( ${formsDataStr} )
+    if [[ ${#formsDataArr[@]} -ne $formsDataLen ]]; then
+      formsText="Details - "
+      formsText+="<span fgcolor='#cc0000'>All fields are required!</span> "
+      formsText+="'Cancel' to quit "
+      continue
+    elif [[ ${formsDataArr[-1]} != ${formsDataArr[-2]} ]]; then
+      formsText="Details - "
+      formsText+="<span fgcolor='#cc0000'>The passphrases don't match!</span> "
+      formsText+="'Cancel' to quit "
+      continue
+    elif [[ ${formsDataArr[1]} == ${formsDataArr[0]} ]]; then
+      formsText="Details - "
+      formsText+="<span fgcolor='#cc0000'>Existing and new can't match!</span> "
+      formsText+="'Cancel' to quit "
+      continue
+    fi
+    luksDevMapperSys=$(get_system_luks_device_mapper) || exit $?
+    print_dbg "$(declare -p luksDevMapperSys)"
+    mkdir ${myPrivDir}
+    chmod ${myPrivDirPerms} ${myPrivDir}
+    luksKeyFilePassExisting=${myPrivDir}/keyfile1
+    luksKeyFilePassNew=${myPrivDir}/keyfile2
+    print_dbg "formsDataArr[0]: $(echo "${formsDataArr[0]}"|tr '[:print:]' '*')"
+    print_dbg "formsDataArr[1]: $(echo "${formsDataArr[1]}"|tr '[:print:]' '*')"
+    pwqualityMsg=$(pwquality check "${formsDataArr[1]}"); RETVAL=$?
+    if [[ $RETVAL -ne 0 ]]; then
+      errorTextBak=${errorText}
+      errorText="$pwqualityMsg"
+      zenity_error_1
+      msg_inf "zenity_error_1() displayed: $errorText"
+      errorText=${errorTextBak}
+      formsText="Details... 'Cancel' to quit "
+      continue
+    fi
+    echo -n "${formsDataArr[0]}" > ${luksKeyFilePassExisting}
+    echo -n "${formsDataArr[1]}" > ${luksKeyFilePassNew}
+    print_dbg "$(declare -p luksAct)"
+    print_dbg "$(declare -p luksDevMapperSys)"
+    print_dbg "$(declare -p luksKeyFilePassExisting)"
+    print_dbg "$(declare -p luksKeyFilePassNew)"
+    print_dbg "$(declare -p myPkexecLogFile)"
+    pkexec "$myBinDir/as-root" \
+      ${luksAct} \
+      ${luksDevMapperSys} \
+      ${luksKeyFilePassExisting} \
+      ${luksKeyFilePassNew} &>${myPkexecLogFile}; RETVAL=$?
+    if [[ $RETVAL -eq 0 ]]; then
+      msg_inf "$myBinDir/as-root succeeded. myVersion=$myVersion"
+      echo -n yes > ${myStateFile} || exit $?
+      infoText="Succeeded! Restart this machine at your convenience to test."
+      zenity_info_1
+      msg_inf "zenity_info_1() displayed: $infoText"
+    else
+      msg_err "$myBinDir/as-root failed! myPkexecLogFile=$myPkexecLogFile"
+      errorText+="IT Support will need $myPkexecLogFile"
+      zenity_error_1
+      msg_inf "zenity_error_1() displayed: $errorText"
+      if $boolOptAutostart; then
+        zenity_warning_1
+        msg_inf "zenity_warning_1() displayed: $warningText"
+      fi
+    fi
+    break
+  else
+    msg_inf "zenity_forms_1() cancelled. boolCancelQuits=$boolCancelQuits"
+    if $boolCancelQuits; then
+      if $boolOptAutostart; then
+        zenity_warning_1
+        msg_inf "zenity_warning_1() displayed: $warningText"
+      fi
+      break
+    else
+      boolLuksUserPassphraseForgottenUnknown=true
+      boolCancelQuits=true
+      formsText="Details... 'Cancel' to quit "
+      continue
+    fi
+  fi
+done
+

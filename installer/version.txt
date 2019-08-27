@@ -1,0 +1,2 @@
+# Last ver. DO NOT EDIT! Used to auto-increment PACKAGERELEASE with each revision.
+VERSIONFULL=0.4-38

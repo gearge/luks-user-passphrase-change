@@ -1,0 +1,13 @@
+{% if targetPackage == "debian" -%}
+#!/bin/sh
+
+set -e
+
+action="$1"
+{% endif %}
+{% if targetPackage == "rpm" -%}
+cd /usr/local/share/applications || exit 0
+if [ ! -e {{ PACKAGE }}.desktop ]; then
+  ln -s /usr/share/applications/{{ PACKAGE }}.desktop
+fi
+{% endif %}

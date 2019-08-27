@@ -1,0 +1,74 @@
+#!/bin/bash -x
+# ../gearge-luks-user-passphrase-change/as-root
+#
+# Copyright 2018, 2019 Giorgi Tavkelishvili
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Last updated 2019-02-01 by Giorgi T.
+
+myWorkDir="$PWD"
+myName=$(basename "$0")
+myFullName=$(readlink -f "$0") # canonicalized path
+myBinDir=$(dirname "$myFullName") # canonicalized path
+
+# --- Main ---------------------------------------------------------------------
+
+source "$myBinDir/common.include" || exit $?
+
+if [[ -e ${myLockFile} ]]; then
+  myLockFileContents=$(cat ${myLockFile}) # last script $$ (PID)
+  msg="Found $myLockFile! Another $0 (PID=$myLockFileContents) running?"
+  syslog_err "$msg Exiting..."
+  exit 1
+else
+  echo "$$" > ${myLockFile} || exit $?
+fi
+
+# call cleanup() on exit
+trap cleanup 0
+
+set -e
+
+luksAct=${1}
+luksDevMapperSys=${2}
+luksKeyFilePassExisting=${3}
+luksKeyFilePassNew=${4}
+
+luksDevSys=$(
+  "$myBinDir/get-system-luks-device" ${luksDevMapperSys}
+) # E.g. /dev/sda2
+
+case ${luksAct} in
+  (change)
+    syslog_cmd sudo cryptsetup luksChangeKey \
+      --key-slot ${luksUserKeySlotNum} \
+      --key-file ${luksKeyFilePassExisting} \
+      ${luksDevSys} ${luksKeyFilePassNew}
+    ;;
+  (reset)
+    syslog_cmd sudo cryptsetup luksKillSlot -q \
+      ${luksDevSys} ${luksUserKeySlotNum}
+    syslog_cmd sudo cryptsetup luksAddKey \
+      --key-slot ${luksUserKeySlotNum} \
+      --key-file ${luksKeyFilePassExisting} \
+      ${luksDevSys} ${luksKeyFilePassNew}
+    ;;
+  (*)
+    exit 1
+    ;;
+esac
+
+set +e
+

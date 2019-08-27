@@ -1,0 +1,18 @@
+
+# Usage: get_version_info ${VERSION}
+# Note how I use foo_func() () and not traditional foo_func() {} syntax here,
+# to spawn a subshell, as a belt-and-braces measure to preserve exported vars.
+get_version_info() (
+  source ${SCRIPTDIR}/version.txt || return $? # E.g. VERSIONFULL="0.4-1"
+  declare $(
+    echo ${VERSIONFULL} | sed -r \
+      's/^([0-9\.]+)-([0-9]+)(ubuntu[0-9]+)?$/VERSION=\1 PACKAGERELEASE=\2/'
+  ) || return $? # E.g. VERSION="0.4" PACKAGERELEASE="1"
+  [[ $VERSION == $1 ]] && echo $(($PACKAGERELEASE + 1)) || echo 1
+)
+
+# Usage: save_version_info
+save_version_info() {
+  sed -i "s/^VERSIONFULL=.*/VERSIONFULL=${VERSIONFULL}/" \
+    ${SCRIPTDIR}/version.txt || return $?
+}

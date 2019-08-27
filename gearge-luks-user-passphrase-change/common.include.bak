@@ -1,0 +1,135 @@
+# ../gearge-luks-user-passphrase-change/common.include
+#
+# Copyright 2018, 2019 Giorgi Tavkelishvili
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Last updated 2019-02-01 by Giorgi T.
+
+# --- Configurable options -----------------------------------------------------
+DEBUG=false # [/bin/]false or [/bin/]true
+myVersion=0.4
+myLockFile=/var/lock/gearge-luks-user-passphrase-change.lock
+myStateFile=~/.config/gearge-luks-user-passphrase-change-done
+myPrivDir="/dev/shm/${USER}"
+myPrivDirPerms="u=rwx,g=,o="
+luksUserKeySlotNum=2
+etcCustodianUsernameFile=/etc/gearge/custodian_username
+# --- End of configurable options ----------------------------------------------
+
+print_inf() { echo "INFO: $*" 1>&2; }
+print_err() { echo "ERROR: $*" 1>&2; }
+print_dbg() { $DEBUG && echo "DEBUG: $*" 1>&2; }
+
+syslog_inf() { logger -p local0.info -t ${myName}[$$] "$*"; }
+syslog_err() { logger -p local0.err -t ${myName}[$$] "$*"; }
+syslog_dbg() { $DEBUG && logger -p local0.debug -t ${myName}[$$] "$*"; }
+
+msg_inf() {
+  if ${boolOptAutostart}; then
+    print_inf "$*"
+  else
+    print_inf "$*"
+    syslog_inf "$*"
+  fi
+}
+msg_err() {
+  if ${boolOptAutostart}; then
+    print_err "$*"
+  else
+    print_err "$*"
+    syslog_err "$*"
+  fi
+}
+msg_dbg() {
+  if ${boolOptAutostart}; then
+    print_dbg "$*"
+  else
+    print_dbg "$*"
+    syslog_dbg "$*"
+  fi
+}
+
+cleanup() {
+  local RETVAL=$?
+  # On ubuntu-1804: /var/lock -> /run/lock (drwxrwxrwt 5 root root ...)
+  # On centos-7:    /var/lock -> /run/lock (drwxr-xr-x 7 root root ...)
+  sudo rm -f ${myLockFile} ${luksKeyFilePassExisting} ${luksKeyFilePassNew}
+  return $RETVAL
+}
+
+syslog_cmd() {
+  local ERREXIT CMDOUTPUT RETVAL
+  # NOTE: $- variable gets reset in the subshell!
+  [[ $- =~ e ]] && ERREXIT=e || ERREXIT=""
+  set +${ERREXIT}
+  CMDOUTPUT=$("$@" 2>&1); RETVAL=$?
+  set -${ERREXIT}
+  if [[ $RETVAL -ne 0 ]]; then
+    if [[ ${ERREXIT} ]]; then
+      syslog_err "$* returned $RETVAL: $CMDOUTPUT Exiting..."
+      exit ${RETVAL}
+    else
+      syslog_err "$* returned $RETVAL: $CMDOUTPUT"
+      return ${RETVAL}
+    fi
+  fi
+  echo "$CMDOUTPUT"
+  syslog_inf "$* returned $RETVAL"
+  return $RETVAL
+}
+
+get_system_luks_device_mapper() {
+  local -a lsblkList mountList
+  local -A lsblkByNAME lsblkByTYPE
+  local devMapperRoot interestingMAJ
+  IFS=$'\n' mountList=($(mount -l))
+  IFS=$'\n' lsblkList=($(lsblk --noheadings --list --paths \
+                          --output TYPE,NAME,MAJ:MIN | tr -s ' '))
+  print_dbg "$(declare -p mountList lsblkList)"
+  
+  for l in "${mountList[@]}"; do
+    if [[ $l =~ ^(.*)\ on\ /\ type\ .*$ ]]; then
+      print_dbg "$(declare -p BASH_REMATCH)"
+      # E.g. BASH_REMATCH='([0]="/dev/mapper/centos-root on / type xfs (rw,...
+      devMapperRoot=${BASH_REMATCH[1]}
+      # E.g. "/dev/mapper/centos-root" on Ubuntu 18.04
+      #      "/dev/mapper/ubuntu--vg-root" on CentOS 7
+      break
+    fi
+  done
+  [[ -n $devMapperRoot ]] || return 1
+  
+  for l in "${lsblkList[@]}"; do
+    IFS=' ' read -r TYPE NAME MAJMIN misc <<< "$l"
+    lsblkByNAME[$MAJMIN]=${NAME}
+    lsblkByTYPE[$MAJMIN]=${TYPE}
+    if [[ $NAME == $devMapperRoot ]]; then
+      print_dbg "$(declare -p TYPE NAME MAJMIN)"
+      # E.g. TYPE="lvm" NAME="/dev/mapper/centos-root" MAJMIN="253:1"
+      interestingMAJ=${MAJMIN%:*} # E.g. interestingMAJ="253"
+    fi
+  done
+  print_dbg "$(declare -p lsblkByNAME lsblkByTYPE)"
+  [[ -n $interestingMAJ ]] || return 1
+  
+  if [[ ${lsblkByTYPE[$interestingMAJ:0]} =~ ^crypt(o_LUKS)? ]]; then
+    # E.g. lsblkByNAME[253:0]="/dev/mapper/sda3_crypt" on Ubuntu 18.04
+    #      lsblkByNAME[253:0]="/dev/mapper/luks-2633fe2e-254b-4... on CentOS 7
+    echo ${lsblkByNAME[$interestingMAJ:0]}
+  else
+    return 1
+  fi
+}
+

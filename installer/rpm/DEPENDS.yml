@@ -1,0 +1,18 @@
+---
+
+# rpm -qf `which COMMAND|tail -1`
+DEPENDS:
+  - bash # Command(s): bash
+  - zenity # Command(s): zenity
+  - cryptsetup # Command(s): cryptsetup
+  - coreutils # Command(s): basename, readlink, dirname, stat, cat, date, tr
+  - gawk # Command(s): awk
+  - util-linux # Command(s): mount, lsblk, logger
+  - polkit # Command(s): pkexec
+  - hostname # Command(s): hostname
+  - binutils # Command(s): strings
+  - which # Command(s): which
+  - grep # Command(s): grep
+  - libpwquality # Command(s): pwscore
+  - python # Command(s): python
+

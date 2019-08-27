@@ -1,0 +1,129 @@
+#------------------------------------------------------------------------------
+#   {{ PACKAGE }}.spec
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+#   Prologue information
+#------------------------------------------------------------------------------
+Summary: {{ MENUNAME }}
+License: {{ PRODUCTLICENSE }}
+Name: {{ PACKAGE }}
+Version: {{ VERSION }}
+Release: {{ PACKAGERELEASE }}
+URL: {{ PRODUCTURL }}
+
+Provides: {{ PACKAGE }} = %{version}
+{% for DEP in DEPENDS -%}
+Requires: {{ DEP }}
+{% endfor %}
+{# Autoreqprov: no -#}
+
+# https://docs.fedoraproject.org/en-US/packaging-guidelines/#_tags_and_sections
+#
+# * The Copyright:, Packager:, Vendor: and PreReq: tags MUST NOT be used.
+# * The BuildRoot: tag, Group: tag, and %clean section SHOULD NOT be used.
+# * The contents of the buildroot SHOULD NOT be removed in the first line of 
+#   %install.
+# * The Summary: tag value SHOULD NOT end in a period.
+# * The Source: tags document where to find the upstream sources for the
+#   package. In most cases this SHOULD be a complete URL to the upstream
+#   tarball. For special cases, please see the SourceURL Guidelines.
+#
+# "Fedora (as of F-10) does not require the presence of the BuildRoot tag in the
+#  spec and if one is defined it will be ignored. The provided buildroot will
+#  automatically be cleaned before commands in %install are called."
+
+# The prefix is pretty important; RPM uses this to figure out
+# how to make a package relocatable
+prefix: /opt
+
+# Build with the following syntax:
+# rpmbuild --target noarch -bb {{ PACKAGE }}.spec
+
+#------------------------------------------------------------------------------
+#   Description
+#------------------------------------------------------------------------------
+%description
+{{ SHORTDESC }}.
+
+{{ FULLDESC }}
+
+#------------------------------------------------------------------------------
+#   Create the build tree and copy files (scripts and other items) into it
+#------------------------------------------------------------------------------
+%prep
+
+echo "RPM_BUILD_ROOT = $RPM_BUILD_ROOT"
+
+{% include "/".join([SCRIPTDIR, "common/prep.j2"]) %}
+
+exit $?
+
+
+
+#------------------------------------------------------------------------------
+#   Files listing.
+#------------------------------------------------------------------------------
+%files
+%defattr(-,root,root)
+#%doc README
+
+# We cheat and just let RPM figure it out for us; everything we install
+# should go under this prefix anyway.
+{{ INSTALLDIR }}
+
+# Be explicit about the files we scatter throughout the system we don't
+# accidentally "own" stuff that's not ours.
+%attr(0644,root,root) /etc/xdg/autostart/{{ PACKAGE }}-autostart.desktop
+%attr(0644,root,root) /usr/share/applications/{{ PACKAGE }}.desktop
+%ghost %attr(0777,root,root) /usr/local/share/applications/{{ PACKAGE }}.desktop
+
+#------------------------------------------------------------------------------
+#   Pre install script
+#------------------------------------------------------------------------------
+%pre
+
+{% include "/".join([SCRIPTDIR, "common/preinst.j2"]) ignore missing %}
+
+exit 0
+
+
+
+#------------------------------------------------------------------------------
+#   Post install script
+#------------------------------------------------------------------------------
+%post
+
+{% include "/".join([SCRIPTDIR, "common/postinst.j2"]) ignore missing %}
+
+exit 0
+
+
+
+#------------------------------------------------------------------------------
+#   Pre uninstallation script
+#------------------------------------------------------------------------------
+%preun
+
+{% include "/".join([SCRIPTDIR, "common/prerm.j2"]) ignore missing %}
+
+exit 0
+
+
+
+#------------------------------------------------------------------------------
+#   Post uninstallation script
+#------------------------------------------------------------------------------
+%postun
+
+{% include "/".join([SCRIPTDIR, "common/postrm.j2"]) ignore missing %}
+
+exit 0
+
+
+
+{#
+%changelog
+* {{ DATERPMDEV }} {{ MAINTNAME }} <{{ MAINTMAIL }}> {{ VERSIONFULL }}
+- A brief summary of the changes done to the package between releases.
+-#}

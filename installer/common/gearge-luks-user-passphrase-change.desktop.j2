@@ -1,0 +1,23 @@
+[Desktop Entry]
+Version=1.0
+Encoding=UTF-8
+Type=Application
+Name={{ MENUNAME }}
+Name[en_NZ]={{ MENUNAME }}
+GenericName={{ MENUGENERICNAME }}
+GenericName[en_NZ]={{ MENUGENERICNAME }}
+Comment={{ SHORTDESC }}
+Comment[en_NZ]={{ SHORTDESC }}
+Categories=System;
+Path={{ INSTALLDIR }}
+Icon={{ INSTALLDIR }}/product_logo_96.png
+{% if boolAutostart == "true" %}
+Exec={{ PROGPATH }} autostart
+Terminal=false
+NoDisplay=true
+AutostartCondition=unless-exists {{ PACKAGE }}-done
+{% else %}
+Exec={{ PROGPATH }}
+Terminal=true
+NoDisplay=false
+{% endif %}

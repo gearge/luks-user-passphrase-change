@@ -1,0 +1,20 @@
+---
+
+# dpkg -S `which COMMAND|tail -1`
+DEPENDS:
+  - bash # Command(s): bash
+  - zenity # Command(s): zenity
+  - coreutils # Command(s): basename, readlink, dirname, stat, cat, date, tr
+  - cryptsetup-bin # Command(s): cryptsetup
+  - mount # Command(s): mount
+  - util-linux # Command(s): lsblk
+  - policykit-1 # Command(s): pkexec
+  - hostname # Command(s): hostname
+  - bsdutils # Command(s): logger
+  - grep # Command(s): grep
+  - binutils # Command(s): strings
+  - gawk # Command(s): awk
+  - libpwquality-tools # Command(s): pwscore
+  - debianutils # Command(s): which
+  - python # Command(s): python
+

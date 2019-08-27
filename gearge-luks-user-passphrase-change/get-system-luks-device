@@ -1,0 +1,40 @@
+#!/bin/bash
+# ../gearge-luks-user-passphrase-change/get-system-luks-device
+#
+# Copyright 2018, 2019 Giorgi Tavkelishvili
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Last updated 2019-02-01 by Giorgi T.
+
+myWorkDir="$PWD"
+myName=$(basename "$0")
+myFullName=$(readlink -f "$0") # canonicalized path
+myBinDir=$(dirname "$myFullName") # canonicalized path
+
+# --- Main ---------------------------------------------------------------------
+
+source "$myBinDir/common.include" || exit $?
+
+if [[ -n $1 ]]; then
+  luksDevMapperSys=${1}
+else
+  luksDevMapperSys=$(get_system_luks_device_mapper) || exit $?
+fi
+print_dbg "$(declare -p luksDevMapperSys)"
+
+luksStatus=$(sudo cryptsetup status ${luksDevMapperSys}) || exit $?
+luksDevSys=$(awk '/ device:/ { print $2; }' <<<"$luksStatus") # E.g. /dev/sda2
+echo "$luksDevSys"
+

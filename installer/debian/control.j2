@@ -1,0 +1,10 @@
+Section: base
+Priority: optional
+Maintainer: {{ MAINTNAME }} <{{ MAINTMAIL }}>
+Standards-Version: 3.8.0
+Package: {{ PACKAGE }}
+Version: {{ VERSIONFULL }}
+Depends: {{ DEPENDS|join(", ") }}
+Architecture: {{ ARCHITECTURE }}
+Description: {{ SHORTDESC }}
+ {{ FULLDESC }}

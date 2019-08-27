@@ -1,0 +1,19 @@
+# Put the common install files in the staging area.
+# stage_install_common() {}
+{% if targetPackage == "rpm" -%}
+STAGEDIR=${RPM_BUILD_ROOT}
+{% endif %}
+install -m 0755 -d \
+  ${STAGEDIR}/etc/xdg/autostart \
+  ${STAGEDIR}/usr/share/applications \
+  ${STAGEDIR}${INSTALLDIR}
+
+install -m 0644 ${TMPFILEDIR}/etc/xdg/autostart/${PACKAGE}-autostart.desktop \
+  ${STAGEDIR}/etc/xdg/autostart/${PACKAGE}-autostart.desktop
+install -m 0644 ${TMPFILEDIR}/usr/share/applications/${PACKAGE}.desktop \
+  ${STAGEDIR}/usr/share/applications/${PACKAGE}.desktop
+install -m 0644 ${TMPFILEDIR}${INSTALLDIR}/*.include ${STAGEDIR}${INSTALLDIR}/
+install -m 0777 ${TMPFILEDIR}${INSTALLDIR}/as-* ${STAGEDIR}${INSTALLDIR}/
+install -m 0777 ${TMPFILEDIR}${INSTALLDIR}/get-* ${STAGEDIR}${INSTALLDIR}/
+install -m 0777 ${TMPFILEDIR}${INSTALLDIR}/*.py ${STAGEDIR}${INSTALLDIR}/
+install -m 0644 ${TMPFILEDIR}${INSTALLDIR}/*.png ${STAGEDIR}${INSTALLDIR}/
